@@ -40,14 +40,16 @@
 
 ---
 
-## 三、当前状态（V1.0 已交付）
+## 三、当前状态（V2 手机版已找回并入库）
 
 ### 已完成
 - ✅ 87 条原始酒店数据清洗 → 80 家有效酒店（删除停业、合并重复、补充多门店）
 - ✅ 所有酒店 GCJ-02 经纬度（通过高德地理编码 API 批量获取，成功率 100%）
 - ✅ 风格标签初版（30+ 家手动分类，其余默认"酒店宴会厅"）
-- ✅ HTML 地图工具（高德底图 + 4 维度筛选 + 渠道颜色区分）
+- ✅ V1 HTML 地图工具（高德底图 + 4 维度筛选 + 渠道颜色区分）
+- ✅ V2 手机适配版地图工具（底部筛选抽屉、触摸展开/收起、酒店详情页、带看视频位）
 - ✅ Excel 主数据库（13 个字段，含中文格式化）
+- ✅ V2 结构化酒店数据（含 `videoUrl` 字段）
 - ✅ 婚礼管家培训手册（Word，11 章节，含 5 道考核题）
 
 ### 数据完整度
@@ -65,15 +67,17 @@
 ## 四、项目文件清单
 
 ### 数据文件
-- `data/UMI酒店主数据库_V1.xlsx` — **核心数据源**（80 家酒店主数据表）
-- `data/UMI_酒店坐标_2026-05-19.xlsx` — 原始 87 条坐标查询结果
-- `data/UMI_坐标补查_2026-05-19.csv` — 四方阁多门店 + 朗丽兹补查结果
-- `data/UMI星级酒店宴会厅参数表_婚礼管家版.xlsx` — 前期收集的宴会厅详细参数（参考用）
+- `data/UMI酒店主数据库_V1.xlsx` — **核心 Excel 数据源**（80 家酒店主数据表）
+- `data/hotels_v2.json` — V2 地图使用的结构化酒店数据，含 `videoUrl` 字段
+- `data/hotels_data.txt` — 注入 `src/template_v2.html` 的 JS 酒店数据
 
 ### 工具文件
-- `tools/UMI酒店地图_V1.html` — **管家用的地图工具**（单文件 HTML，浏览器直接打开）
-- `tools/UMI酒店坐标查询工具.html` — 批量地理编码工具（拿到高德 Key 后浏览器跑）
-- `tools/UMI_坐标补查工具.html` — 单次补查工具（特殊情况用）
+- `tools/UMI酒店地图_V1.html` — V1 桌面版地图工具（单文件 HTML，浏览器直接打开）
+- `tools/UMI酒店地图_V2.html` — **当前主推版本**，手机适配版地图工具（底部筛选抽屉 + 酒店详情 + 视频位）
+
+### 源码与构建
+- `src/template_v2.html` — V2 地图 HTML 模板
+- `scripts/build_v2.js` — 从 `data/hotels_data.txt` + `src/template_v2.html` 生成 `tools/UMI酒店地图_V2.html`
 
 ### 文档文件
 - `docs/UMI酒店地图_管家培训手册.docx` — 给管家的培训文档
@@ -101,6 +105,7 @@
 | 餐标档位 | enum | 4 档 + 待询 | "3000-5000"、"待询" |
 | 桌数档位 | enum | 4 档 + 待询 | "50-100桌"、"待询" |
 | 高德匹配名称 | string | 调 API 返回的酒店名 | "费尔蒙酒店(成都)" |
+| videoUrl | string | V2 详情页带看视频地址；为空时显示占位 | "videos/example.mp4" |
 
 ### 风格标签体系（6 类）
 | 标签 | 典型特征 | 客户画像 |
@@ -147,7 +152,22 @@
 | 地理编码 | 高德开放平台 Web 服务 API |
 | 坐标系 | **GCJ-02**（火星坐标系，中国境内强制） |
 | 地图渲染 | Leaflet 1.9.4 + 高德地图 tile 服务 |
-| 前端框架 | 纯 HTML + 原生 JS（无构建依赖） |
+| 前端框架 | 纯 HTML + 原生 JS（无构建依赖；V2 用 Node 脚本做静态模板注入） |
+
+### V2 重新生成
+```bash
+node scripts/build_v2.js
+```
+
+构建逻辑：读取 `src/template_v2.html`，把 `HOTEL_DATA_PLACEHOLDER` 替换为 `data/hotels_data.txt`，输出 `tools/UMI酒店地图_V2.html`。
+
+### 视频上传/更新流程
+1. 把酒店带看视频放在可被浏览器访问的位置，例如仓库内相对路径 `videos/酒店名.mp4`，或内部 CDN/对象存储 HTTPS 地址。
+2. 在 `data/hotels_v2.json` 和 `data/hotels_data.txt` 对应酒店补充 `videoUrl`。
+3. 运行 `node scripts/build_v2.js` 重新生成 `tools/UMI酒店地图_V2.html`。
+4. 打开 V2 HTML，点击对应酒店确认详情页视频可播放。
+
+> 注意：如果用本地相对路径，视频文件需要和 HTML 一起分发；如果用外部 HTTPS 地址，需确认管家手机网络可访问。
 | 文档生成 | Python (openpyxl) + Node.js (docx) |
 
 ### 高德 API

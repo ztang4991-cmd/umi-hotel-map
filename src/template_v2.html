@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>UMI 酒店地图 V2 · 婚礼管家工作台</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; height: 100vh; overflow: hidden; }
+
+/* ===== PC Layout ===== */
+.layout { display: flex; height: 100vh; }
+.sidebar {
+  width: 320px; background: #1a1a2e; color: white;
+  overflow-y: auto; padding: 20px 16px;
+  box-shadow: 2px 0 12px rgba(0,0,0,.2); flex-shrink: 0;
+  display: flex; flex-direction: column;
+}
+.sidebar h1 { font-size: 18px; margin-bottom: 2px; }
+.sidebar .subtitle { font-size: 11px; color: #8892a4; margin-bottom: 14px; }
+
+/* Search */
+.search-box { position: relative; margin-bottom: 16px; }
+.search-box input {
+  width: 100%; padding: 10px 14px 10px 36px;
+  border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+  background: rgba(255,255,255,.06); color: white; font-size: 13px;
+  outline: none; transition: border-color .2s;
+}
+.search-box input:focus { border-color: #ffc107; }
+.search-box input::placeholder { color: #6b7280; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b7280; font-size: 14px; }
+
+/* Filters */
+.filter-group { margin-bottom: 14px; }
+.filter-group h3 { font-size: 11px; margin-bottom: 7px; color: #ffc107; letter-spacing: 1px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  padding: 7px 13px; border-radius: 16px; font-size: 12px;
+  cursor: pointer; transition: all .15s; user-select: none;
+}
+.chip:hover { background: rgba(255,255,255,0.12); }
+.chip.active { background: #ffc107; color: #1a1a2e; border-color: #ffc107; font-weight: 600; }
+
+/* Stats & buttons */
+.stats {
+  background: rgba(255,255,255,.04); padding: 12px 14px;
+  border-radius: 8px; margin-top: auto; font-size: 12px; line-height: 1.8;
+}
+.stats .big { font-size: 28px; font-weight: bold; color: #4caf50; }
+.reset-btn {
+  background: rgba(239,68,68,.9); color: white; border: none;
+  padding: 10px 12px; width: 100%; border-radius: 8px;
+  cursor: pointer; margin-top: 12px; font-size: 12px; font-weight: 500;
+  transition: background .2s;
+}
+.reset-btn:hover { background: #dc2626; }
+
+/* Legend */
+.legend {
+  background: rgba(255,255,255,.04); padding: 10px 12px;
+  border-radius: 8px; margin-top: 12px; font-size: 11px;
+}
+.legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+/* Map */
+#map { flex: 1; height: 100vh; z-index: 1; }
+
+/* ===== Detail Panel (PC: slide from right) ===== */
+.detail-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.4); z-index: 999;
+}
+.detail-overlay.open { display: block; }
+.detail-panel {
+  position: fixed; top: 0; right: -420px; width: 400px; height: 100vh;
+  background: white; box-shadow: -4px 0 20px rgba(0,0,0,.15);
+  z-index: 1000; transition: right .3s ease; overflow-y: auto;
+}
+.detail-panel.open { right: 0; }
+.detail-header {
+  position: sticky; top: 0; background: #1a1a2e; color: white;
+  padding: 20px; display: flex; align-items: center; justify-content: space-between; z-index: 10;
+}
+.detail-header h2 { font-size: 16px; font-weight: 600; flex: 1; margin-right: 12px; line-height: 1.4; }
+.detail-close {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,.1); border: none; color: white;
+  font-size: 18px; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: background .2s; flex-shrink: 0;
+}
+.detail-close:hover { background: rgba(255,255,255,.2); }
+.detail-body { padding: 20px; }
+.detail-section { margin-bottom: 20px; }
+.detail-section-title {
+  font-size: 11px; color: #9ca3af; font-weight: 600;
+  letter-spacing: 1px; margin-bottom: 10px;
+  border-bottom: 1px solid #f3f4f6; padding-bottom: 6px;
+}
+.detail-row { display: flex; margin-bottom: 10px; font-size: 13px; line-height: 1.6; }
+.detail-label { color: #6b7280; width: 56px; flex-shrink: 0; }
+.detail-value { color: #1f2937; font-weight: 500; word-break: break-all; }
+.channel-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 12px;
+  font-size: 11px; color: white; font-weight: 600;
+}
+.badge-shi { background: #2563eb; }
+.badge-chang { background: #7c3aed; }
+.badge-both { background: #dc2626; }
+
+/* Video */
+.video-container { border-radius: 10px; overflow: hidden; background: #f9fafb; border: 1px solid #e5e7eb; }
+.video-container video { width: 100%; display: block; max-height: 260px; object-fit: contain; background: #000; }
+.video-placeholder { padding: 36px 20px; text-align: center; color: #9ca3af; }
+.video-placeholder .icon { font-size: 36px; margin-bottom: 8px; }
+.video-placeholder p { font-size: 12px; line-height: 1.6; }
+
+/* Map popup */
+.leaflet-popup-content-wrapper { border-radius: 10px; }
+.leaflet-popup-content { margin: 8px 0; }
+.popup-mini { padding: 10px 14px; font-size: 13px; min-width: 160px; cursor: pointer; }
+.popup-mini .name { font-weight: 600; color: #1a1a2e; margin-bottom: 3px; }
+.popup-mini .hint { font-size: 11px; color: #2563eb; }
+
+/* ===== Mobile (<=768px) ===== */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; position: relative; }
+
+  /* Sidebar becomes bottom drawer */
+  .sidebar {
+    position: fixed; bottom: 0; left: 0; right: 0; width: 100%;
+    height: auto; max-height: 72vh; z-index: 900;
+    border-radius: 16px 16px 0 0; padding: 10px 16px 28px;
+    transform: translateY(calc(100% - 68px)); transition: transform .3s ease;
+  }
+  .sidebar.expanded { transform: translateY(0); }
+  .sidebar-handle {
+    display: block !important; width: 36px; height: 4px;
+    background: rgba(255,255,255,.3); border-radius: 2px; margin: 0 auto 10px;
+  }
+
+  #map { height: 100vh; width: 100%; }
+
+  /* Bigger touch targets */
+  .chip { padding: 10px 14px; font-size: 13px; min-height: 40px; display: flex; align-items: center; }
+  .search-box input { padding: 12px 14px 12px 38px; font-size: 14px; }
+
+  /* Detail panel: fullscreen on mobile */
+  .detail-panel {
+    position: fixed; top: 0; left: 0; right: auto; bottom: 0;
+    width: 100%; height: 100%; border-radius: 0;
+    transform: translateX(100%); transition: transform .3s ease;
+  }
+  .detail-panel.open { transform: translateX(0); right: auto; }
+}
+@media (min-width: 769px) {
+  .sidebar-handle { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-handle" id="sidebarHandle"></div>
+    <h1>🏨 UMI 酒店地图</h1>
+    <div class="subtitle">婚礼管家工作台 · V2</div>
+
+    <!-- Search -->
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="搜索酒店名称..." />
+    </div>
+
+    <!-- Channel -->
+    <div class="filter-group">
+      <h3>🏢 渠道</h3>
+      <div class="chip-row" id="filter-channel">
+        <div class="chip" data-val="时光在线">时光在线</div>
+        <div class="chip" data-val="昌森">昌森</div>
+        <div class="chip" data-val="两者">两者（双渠道）</div>
+      </div>
+    </div>
+
+    <!-- District -->
+    <div class="filter-group">
+      <h3>📍 区域</h3>
+      <div class="chip-row" id="filter-district"></div>
+    </div>
+
+    <!-- Budget -->
+    <div class="filter-group">
+      <h3>💰 餐标</h3>
+      <div class="chip-row" id="filter-budget">
+        <div class="chip" data-val="<1500">&lt;1500</div>
+        <div class="chip" data-val="1500-3000">1500-3000</div>
+        <div class="chip" data-val="3000-5000">3000-5000</div>
+        <div class="chip" data-val="5000+">5000+</div>
+        <div class="chip" data-val="待询">待询</div>
+      </div>
+    </div>
+
+    <!-- Capacity -->
+    <div class="filter-group">
+      <h3>🍽️ 桌数</h3>
+      <div class="chip-row" id="filter-capacity">
+        <div class="chip" data-val="≤20桌">≤20桌</div>
+        <div class="chip" data-val="20-50桌">20-50桌</div>
+        <div class="chip" data-val="50-100桌">50-100桌</div>
+        <div class="chip" data-val="100桌+">100桌+</div>
+        <div class="chip" data-val="待询">待询</div>
+      </div>
+    </div>
+
+    <!-- Style -->
+    <div class="filter-group">
+      <h3>🎨 风格</h3>
+      <div class="chip-row" id="filter-style">
+        <div class="chip" data-val="酒店宴会厅">酒店宴会厅</div>
+        <div class="chip" data-val="中式">中式</div>
+        <div class="chip" data-val="西式">西式</div>
+        <div class="chip" data-val="户外草坪">户外草坪</div>
+        <div class="chip" data-val="独栋会所">独栋会所</div>
+        <div class="chip" data-val="园林度假">园林度假</div>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="resetFilters()">🔄 清空所有筛选</button>
+
+    <div class="stats">
+      当前匹配 <span class="big" id="count">0</span> 家<br>
+      <span style="color:#8892a4;">总库: 80 家合作酒店</span>
+    </div>
+
+    <div class="legend">
+      <div style="color:#ffc107; margin-bottom:6px; font-weight:600;">渠道图例</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#2563eb;"></div>时光在线</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#7c3aed;"></div>昌森</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#dc2626;"></div>两者（双渠道优先推荐）</div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <h2 id="detailName">酒店名称</h2>
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-section">
+      <div class="detail-section-title">📋 基础信息</div>
+      <div class="detail-row"><span class="detail-label">渠道</span><span class="detail-value" id="detailChannel"></span></div>
+      <div class="detail-row"><span class="detail-label">区域</span><span class="detail-value" id="detailDistrict"></span></div>
+      <div class="detail-row"><span class="detail-label">地址</span><span class="detail-value" id="detailAddress"></span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">🎯 筛选维度</div>
+      <div class="detail-row"><span class="detail-label">风格</span><span class="detail-value" id="detailStyle"></span></div>
+      <div class="detail-row"><span class="detail-label">餐标</span><span class="detail-value" id="detailBudget"></span></div>
+      <div class="detail-row"><span class="detail-label">桌数</span><span class="detail-value" id="detailCapacity"></span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">🎬 带看视频</div>
+      <div class="video-container" id="videoContainer">
+        <div class="video-placeholder">
+          <div class="icon">🎥</div>
+          <p>暂无带看视频<br><span style="font-size:11px;color:#b0b0b0;">视频链接配置后自动显示</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ========== HOTEL DATA ==========
+const HOTELS = HOTEL_DATA_PLACEHOLDER;
+
+// ========== District chips (dynamic) ==========
+const districts = [...new Set(HOTELS.map(h => h.district))].sort();
+const distContainer = document.getElementById('filter-district');
+districts.forEach(d => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.dataset.val = d;
+  chip.textContent = d;
+  distContainer.appendChild(chip);
+});
+
+// ========== Filter state ==========
+const filters = { channel: new Set(), district: new Set(), budget: new Set(), capacity: new Set(), style: new Set() };
+let searchQuery = '';
+
+// ========== Chip click ==========
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const filterId = chip.parentElement.id.replace('filter-', '');
+    const val = chip.dataset.val;
+    if (filters[filterId].has(val)) { filters[filterId].delete(val); chip.classList.remove('active'); }
+    else { filters[filterId].add(val); chip.classList.add('active'); }
+    applyFilters();
+  });
+});
+
+// ========== Search ==========
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  applyFilters();
+});
+
+function resetFilters() {
+  Object.values(filters).forEach(s => s.clear());
+  document.querySelectorAll('.chip.active').forEach(c => c.classList.remove('active'));
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  applyFilters();
+}
+
+// ========== Map ==========
+const map = L.map('map', { zoomControl: true }).setView([30.65, 104.07], 11);
+L.tileLayer('https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&style=7&x={x}&y={y}&z={z}', {
+  subdomains: ['1','2','3','4'],
+  attribution: '&copy; 高德地图 · GCJ-02',
+  maxZoom: 18,
+}).addTo(map);
+
+// ========== Marker colors ==========
+function colorByChannel(c) {
+  if (c === '两者') return '#dc2626';
+  if (c === '昌森') return '#7c3aed';
+  return '#2563eb';
+}
+
+// ========== Build markers ==========
+const markers = [];
+HOTELS.forEach(h => {
+  if (!h.lng || !h.lat) return;
+  const color = colorByChannel(h.channel);
+  const icon = L.divIcon({
+    className: 'custom-marker',
+    html: '<div style="background:' + color + ';width:14px;height:14px;border:2.5px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.3);"></div>',
+    iconSize: [18, 18], iconAnchor: [9, 9],
+  });
+  const m = L.marker([h.lat, h.lng], { icon: icon });
+
+  // Mini popup → click to open detail panel
+  m.bindPopup(
+    '<div class="popup-mini" onclick="openDetail(' + h.id + ')">' +
+    '<div class="name">' + h.name + '</div>' +
+    '<div class="hint">点击查看详情 →</div></div>',
+    { closeButton: false, maxWidth: 250 }
+  );
+
+  markers.push({ marker: m, data: h });
+  m.addTo(map);
+});
+
+// ========== Filter logic ==========
+function applyFilters() {
+  let visible = 0;
+  markers.forEach(({ marker, data }) => {
+    let show = true;
+    if (searchQuery && !data.name.toLowerCase().includes(searchQuery)) show = false;
+    if (filters.channel.size && !filters.channel.has(data.channel)) show = false;
+    if (filters.district.size && !filters.district.has(data.district)) show = false;
+    if (filters.budget.size && !filters.budget.has(data.budget)) show = false;
+    if (filters.capacity.size && !filters.capacity.has(data.capacity)) show = false;
+    if (filters.style.size) {
+      const hasMatch = [...filters.style].some(s => data.style.includes(s));
+      if (!hasMatch) show = false;
+    }
+    if (show) { if (!map.hasLayer(marker)) marker.addTo(map); visible++; }
+    else { if (map.hasLayer(marker)) map.removeLayer(marker); }
+  });
+  document.getElementById('count').textContent = visible;
+}
+
+// ========== Detail Panel ==========
+function openDetail(hotelId) {
+  const hotel = HOTELS.find(h => h.id === hotelId);
+  if (!hotel) return;
+
+  document.getElementById('detailName').textContent = hotel.name;
+
+  // Channel badge
+  var badgeClass = 'badge-shi';
+  if (hotel.channel === '两者') badgeClass = 'badge-both';
+  else if (hotel.channel === '昌森') badgeClass = 'badge-chang';
+  document.getElementById('detailChannel').innerHTML =
+    '<span class="channel-badge ' + badgeClass + '">' + hotel.channel + '</span>';
+
+  document.getElementById('detailDistrict').textContent = hotel.district + ' (高德: ' + hotel.realDistrict + ')';
+  document.getElementById('detailAddress').textContent = hotel.address || '-';
+  document.getElementById('detailStyle').textContent = hotel.style || '-';
+  document.getElementById('detailBudget').textContent = hotel.budget || '-';
+  document.getElementById('detailCapacity').textContent = hotel.capacity || '-';
+
+  // Video
+  var container = document.getElementById('videoContainer');
+  if (hotel.videoUrl) {
+    container.innerHTML =
+      '<video controls preload="none">' +
+      '<source src="' + hotel.videoUrl + '" type="video/mp4">' +
+      '您的浏览器不支持视频播放</video>';
+  } else {
+    container.innerHTML =
+      '<div class="video-placeholder"><div class="icon">🎥</div>' +
+      '<p>暂无带看视频<br><span style="font-size:11px;color:#b0b0b0;">视频链接配置后自动显示</span></p></div>';
+  }
+
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('detailOverlay').classList.add('open');
+  map.closePopup();
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('detailOverlay').classList.remove('open');
+  // Stop video if playing
+  var video = document.querySelector('#videoContainer video');
+  if (video) video.pause();
+}
+
+// ========== Mobile drawer ==========
+(function() {
+  var sidebar = document.getElementById('sidebar');
+  var handle = document.getElementById('sidebarHandle');
+  var touchStartY = 0;
+
+  if (handle) {
+    // Click handle to toggle
+    handle.addEventListener('click', function() {
+      sidebar.classList.toggle('expanded');
+    });
+    // Swipe up/down
+    sidebar.addEventListener('touchstart', function(e) {
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    sidebar.addEventListener('touchend', function(e) {
+      var diff = e.changedTouches[0].clientY - touchStartY;
+      if (diff < -50) sidebar.classList.add('expanded');
+      if (diff > 50) sidebar.classList.remove('expanded');
+    });
+  }
+
+  // Auto collapse on mobile after filter chip clicked
+  document.querySelectorAll('.chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      if (window.innerWidth <= 768) {
+        setTimeout(function() { sidebar.classList.remove('expanded'); }, 800);
+      }
+    });
+  });
+})();
+
+// ========== Init ==========
+applyFilters();
+</script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UMI 酒店地图 V1 · 婚礼管家工作台</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; height: 100vh; overflow: hidden; }
+  .layout { display: flex; height: 100vh; }
+  .sidebar { width: 320px; background: #1f3864; color: white; overflow-y: auto; padding: 20px 18px; box-shadow: 2px 0 10px rgba(0,0,0,.15); flex-shrink: 0; }
+  .sidebar h1 { font-size: 18px; margin-bottom: 4px; }
+  .sidebar .subtitle { font-size: 11px; color: #b8c5d6; margin-bottom: 18px; }
+  .filter-group { margin-bottom: 18px; }
+  .filter-group h3 { font-size: 12px; margin-bottom: 8px; color: #ffc107; letter-spacing: 1px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 14px; font-size: 12px; cursor: pointer; transition: all .15s; user-select: none; }
+  .chip:hover { background: rgba(255,255,255,0.15); }
+  .chip.active { background: #ffc107; color: #1f3864; border-color: #ffc107; font-weight: bold; }
+  .stats { background: rgba(255,255,255,.06); padding: 12px 14px; border-radius: 8px; margin-top: 20px; font-size: 12px; line-height: 1.7; }
+  .stats .big { font-size: 24px; font-weight: bold; color: #4caf50; }
+  .reset-btn { background: #c62828; color: white; border: none; padding: 8px 12px; width: 100%; border-radius: 6px; cursor: pointer; margin-top: 12px; font-size: 12px; }
+  .reset-btn:hover { background: #b71c1c; }
+  .legend { background: rgba(255,255,255,.06); padding: 10px 12px; border-radius: 8px; margin-top: 14px; font-size: 11px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+  #map { flex: 1; height: 100vh; }
+  .leaflet-popup-content-wrapper { border-radius: 8px; }
+  .popup-card { font-size: 13px; min-width: 220px; }
+  .popup-card .name { font-weight: bold; font-size: 14px; color: #1f3864; margin-bottom: 8px; }
+  .popup-card .row { margin-bottom: 4px; color: #555; }
+  .popup-card .label { color: #999; display: inline-block; width: 60px; }
+  .popup-card .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; color: white; font-weight: bold; }
+  .badge-shi { background: #1976d2; }
+  .badge-chang { background: #7b1fa2; }
+  .badge-both { background: #d32f2f; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <h1>🏨 UMI 酒店地图</h1>
+    <div class="subtitle">婚礼管家工作台 · V1</div>
+
+    <div class="filter-group">
+      <h3>📍 区域</h3>
+      <div class="chip-row" id="filter-district"></div>
+    </div>
+
+    <div class="filter-group">
+      <h3>💰 餐标</h3>
+      <div class="chip-row" id="filter-budget">
+        <div class="chip" data-val="<1500">&lt;1500</div>
+        <div class="chip" data-val="1500-3000">1500-3000</div>
+        <div class="chip" data-val="3000-5000">3000-5000</div>
+        <div class="chip" data-val="5000+">5000+</div>
+        <div class="chip" data-val="待询">待询</div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <h3>🍽️ 桌数</h3>
+      <div class="chip-row" id="filter-capacity">
+        <div class="chip" data-val="≤20桌">≤20桌</div>
+        <div class="chip" data-val="20-50桌">20-50桌</div>
+        <div class="chip" data-val="50-100桌">50-100桌</div>
+        <div class="chip" data-val="100桌+">100桌+</div>
+        <div class="chip" data-val="待询">待询</div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <h3>🎨 风格</h3>
+      <div class="chip-row" id="filter-style">
+        <div class="chip" data-val="酒店宴会厅">酒店宴会厅</div>
+        <div class="chip" data-val="中式">中式</div>
+        <div class="chip" data-val="西式">西式</div>
+        <div class="chip" data-val="户外草坪">户外草坪</div>
+        <div class="chip" data-val="独栋会所">独栋会所</div>
+        <div class="chip" data-val="园林度假">园林度假</div>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="resetFilters()">🔄 清空所有筛选</button>
+
+    <div class="stats">
+      共 <span class="big" id="count">0</span> 家匹配<br>
+      <span style="color:#b8c5d6;">总库: 80 家酒店</span>
+    </div>
+
+    <div class="legend">
+      <div style="color:#ffc107; margin-bottom: 6px;">渠道图例</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#1976d2;"></div>时光在线</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#7b1fa2;"></div>昌森</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#d32f2f;"></div>两者（双渠道）</div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const HOTELS = [{"id":1,"name":"成都天府空港云享酒店","channel":"时光在线","district":"双流","realDistrict":"双流区","address":"双流国际机场北二路6号","lng":103.960752,"lat":30.575335,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":2,"name":"成都空港国际会议中心及酒店","channel":"时光在线","district":"双流","realDistrict":"双流区","address":"成双大道南段1555号","lng":103.945964,"lat":30.585855,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":3,"name":"成都空港大通世纪酒店","channel":"时光在线","district":"双流","realDistrict":"双流区","address":"西航港街空港四路(美利享材料城旁)","lng":103.99602,"lat":30.519488,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":4,"name":"雅斯特酒店(成都双流店)","channel":"时光在线","district":"双流","realDistrict":"双流区","address":"航鹰东路6号","lng":103.926245,"lat":30.582732,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":5,"name":"不二酒店(麓湖店)","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"香沙路265号38栋2层","lng":104.079694,"lat":30.478247,"style":"户外草坪 / 独栋会所","budget":"待询","capacity":"待询"},{"id":6,"name":"成都万拾酒店(麓湖店)","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"嘉州路与麓湖中路西段交叉口北400米","lng":104.058592,"lat":30.459212,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":7,"name":"成都兴隆湖畔酒店","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"创意路966号3栋","lng":104.094382,"lat":30.386517,"style":"户外草坪","budget":"待询","capacity":"待询"},{"id":8,"name":"牧马山蔚蓝卡地亚白金俱乐部","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"牧华路一段9号","lng":103.918749,"lat":30.527694,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":9,"name":"维也纳国际酒店(成都天府新区西博城店)","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"汉州路999号(天府商务区地铁站C口步行440米)","lng":104.084459,"lat":30.425967,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":10,"name":"蔚蓝卡地亚","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"天府大道南段2599号","lng":104.074813,"lat":30.481094,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":11,"name":"麓山宴","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"万安街道万福寺路777号","lng":104.112567,"lat":30.484245,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":12,"name":"麓岭筵餐厅","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"麓山大道二段6号麓山国际社区内","lng":104.088079,"lat":30.475562,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":13,"name":"麓轩","channel":"时光在线","district":"天府新区","realDistrict":"双流区","address":"润朗路98号麓轩Luxexuan","lng":104.066726,"lat":30.465312,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":14,"name":"世茂成都茂御酒店","channel":"两者","district":"成华区","realDistrict":"成华区","address":"猛追湾横街99号B1层至B3层1-6层31-43层","lng":104.094154,"lat":30.670514,"style":"中式 / 酒店宴会厅","budget":"3000-5000","capacity":"20-50桌"},{"id":15,"name":"凯里亚德酒店成都华侨城店","channel":"时光在线","district":"成华区","realDistrict":"金牛区","address":"西华大道16号华侨城公园广场","lng":104.036914,"lat":30.719657,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":16,"name":"北湖筳禧","channel":"时光在线","district":"成华区","realDistrict":"成华区","address":"环湖路与湖滨一路交叉口西160米","lng":104.157736,"lat":30.714466,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":17,"name":"四方阁(圣灯店)","channel":"时光在线","district":"成华区","realDistrict":"成华区","address":"成华区地勘路4号7号楼1-4层","lng":104.122169,"lat":30.68058,"style":"中式 / 独栋会所","budget":"待询","capacity":"待询"},{"id":18,"name":"四方阁(水脉青龙店)","channel":"时光在线","district":"成华区","realDistrict":"成华区","address":"成华区青龙场致顺路158号","lng":104.109696,"lat":30.699122,"style":"中式 / 独栋会所","budget":"待询","capacity":"待询"},{"id":19,"name":"四方阁(玉琢金沙店)","channel":"时光在线","district":"成华区","realDistrict":"金牛区","address":"金牛区黄忠路1012号","lng":104.013139,"lat":30.687879,"style":"中式 / 独栋会所","budget":"待询","capacity":"待询"},{"id":20,"name":"尚锦品酒店(春熙路东郊记忆店)","channel":"时光在线","district":"成华区","realDistrict":"成华区","address":"府青路二段24号","lng":104.099174,"lat":30.683365,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":21,"name":"成都协信中心希尔顿酒店","channel":"时光在线","district":"成华区","realDistrict":"成华区","address":"踏水桥西街99号","lng":104.099999,"lat":30.680898,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":22,"name":"成都成华豪生life酒店","channel":"时光在线","district":"成华区","realDistrict":"成华区","address":"东华一路268号1栋2单元1号地上1层","lng":104.1423,"lat":30.678405,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":23,"name":"成都滨江希尔顿逸林酒店","channel":"两者","district":"成华区","realDistrict":"成华区","address":"杉板桥路266号1栋二单元","lng":104.123835,"lat":30.665024,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":24,"name":"成都龙之梦大酒店","channel":"两者","district":"成华区","realDistrict":"成华区","address":"嘉陵江路8号-A","lng":104.144628,"lat":30.6297,"style":"酒店宴会厅","budget":"待询","capacity":"100桌+"},{"id":25,"name":"朗丽兹第一江南酒店","channel":"昌森","district":"成华区","realDistrict":"成华区","address":"成华区昭觉寺横路80号","lng":104.102593,"lat":30.702055,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":26,"name":"成都保利皇冠假日酒店","channel":"时光在线","district":"新都","realDistrict":"新都区","address":"蜀龙大道1980号保利公园198","lng":104.14461,"lat":30.752557,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":27,"name":"成都新都豪生life酒店","channel":"时光在线","district":"新都","realDistrict":"新都区","address":"桂湖街道工业大道东段1号","lng":104.159947,"lat":30.803677,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":28,"name":"牧山别院","channel":"时光在线","district":"新都","realDistrict":"双流区","address":"维新街300号","lng":103.908205,"lat":30.492119,"style":"户外草坪 / 园林度假","budget":"待询","capacity":"待询"},{"id":29,"name":"大蓉和(武侯店)","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"武侯大道顺江段88号(武侯立交地铁站A口旁)","lng":103.993171,"lat":30.626122,"style":"中式 / 独栋会所","budget":"待询","capacity":"待询"},{"id":30,"name":"成都凯宾斯基饭店","channel":"两者","district":"武侯区","realDistrict":"武侯区","address":"人民南路四段42号(桐梓林地铁站B口步行380米)","lng":104.066332,"lat":30.618107,"style":"西式 / 酒店宴会厅","budget":"待询","capacity":"50-100桌"},{"id":31,"name":"成都大鼎世纪大酒店","channel":"两者","district":"武侯区","realDistrict":"武侯区","address":"天仁南街298号(火车南站地铁站H5口步行120米)","lng":104.068436,"lat":30.601325,"style":"酒店宴会厅","budget":"待询","capacity":"50-100桌"},{"id":32,"name":"成都岷山饭店","channel":"时光在线","district":"武侯区","realDistrict":"锦江区","address":"四川省成都市锦江区人民南路二段55号","lng":104.067261,"lat":30.648404,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":33,"name":"成都明宇尚雅饭店","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"临江西路1号","lng":104.063796,"lat":30.646131,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":34,"name":"成都棕榈泉费尔蒙酒店","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"天府大道中段269号(世纪城地铁站D口步行90米)","lng":104.069885,"lat":30.553016,"style":"西式 / 酒店宴会厅","budget":"3000-5000","capacity":"50-100桌"},{"id":35,"name":"成都武侯新城希尔顿欢朋酒店","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"万兴路477号1栋","lng":103.995064,"lat":30.620538,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":36,"name":"成都科华明宇豪雅饭店","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"科华南路339号","lng":104.078481,"lat":30.590662,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":37,"name":"成都索菲斯锦苑宾馆","channel":"时光在线","district":"武侯区","realDistrict":"青羊区","address":"人民中路三段22号","lng":104.070484,"lat":30.676923,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":38,"name":"新蓉庭(武侯店)","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"武侯大道顺江段88号(武侯立交地铁站A口旁)","lng":103.993174,"lat":30.626118,"style":"中式 / 独栋会所","budget":"待询","capacity":"待询"},{"id":39,"name":"星宸假日酒店","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"益州大道555号星宸国际4栋","lng":104.057829,"lat":30.558021,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":40,"name":"维也纳国际酒店成都四川师大地铁站店","channel":"时光在线","district":"武侯区","realDistrict":"锦江区","address":"静宁路12号华新公交大厦一层一号","lng":104.119836,"lat":30.604106,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":41,"name":"美居酒店(天府一街)","channel":"昌森","district":"武侯区","realDistrict":"武侯区","address":"天府一街868号","lng":104.049571,"lat":30.560696,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":42,"name":"路易城堡酒店","channel":"时光在线","district":"武侯区","realDistrict":"武侯区","address":"剑南大道北段92号9栋-1层","lng":104.04676,"lat":30.594342,"style":"西式","budget":"待询","capacity":"待询"},{"id":43,"name":"成都温江悦椿酒店","channel":"时光在线","district":"温江","realDistrict":"温江区","address":"桅杆支路199号","lng":103.744809,"lat":30.822989,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":44,"name":"成都温江皇冠假日酒店","channel":"时光在线","district":"温江","realDistrict":"温江区","address":"凤凰北大街619号","lng":103.890047,"lat":30.685983,"style":"酒店宴会厅","budget":"待询","capacity":"50-100桌"},{"id":45,"name":"维也纳国际酒店(成都温江大学城店)","channel":"时光在线","district":"温江","realDistrict":"温江区","address":"凤溪大道南段66号1栋1层2号","lng":103.843773,"lat":30.685305,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":46,"name":"成都东部美爵酒店","channel":"时光在线","district":"简阳","realDistrict":"简阳市","address":"东部新区三岔街道公园大街2576号","lng":104.320531,"lat":30.313766,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":47,"name":"成都兴隆湖润扬希尔顿逸林酒店","channel":"时光在线","district":"简阳","realDistrict":"双流区","address":"菁蓉路388号","lng":104.085699,"lat":30.406004,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":48,"name":"都江堰皇冠假日酒店","channel":"时光在线","district":"都江堰市","realDistrict":"都江堰市","address":"都江堰大道388号","lng":103.660859,"lat":30.984314,"style":"园林度假 / 酒店宴会厅","budget":"待询","capacity":"待询"},{"id":49,"name":"成都三岔湖番薯藤度假酒店","channel":"时光在线","district":"金堂县","realDistrict":"简阳市","address":"丹景街道柏树村4组8号","lng":104.267876,"lat":30.326349,"style":"户外草坪 / 园林度假","budget":"待询","capacity":"待询"},{"id":50,"name":"成都金堂恒大酒店","channel":"时光在线","district":"金堂县","realDistrict":"金堂县","address":NaN,"lng":104.39046,"lat":30.859224,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":52,"name":"成都泰合索菲特大饭店","channel":"昌森","district":"锦江区","realDistrict":"锦江区","address":"滨江中路15号(锦江宾馆地铁站B口步行490米)","lng":104.068788,"lat":30.647291,"style":"西式 / 酒店宴会厅","budget":"待询","capacity":"20-50桌"},{"id":53,"name":"四川铁道大酒店","channel":"时光在线","district":"青羊区","realDistrict":"金牛区","address":"人民北路二段9号","lng":104.072558,"lat":30.691148,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":54,"name":"天府阳光酒店","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"太升北路2号(太升南路地铁站C口步行410米)","lng":104.079197,"lat":30.667972,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":55,"name":"成都友豪罗曼酒店","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"人民中路二段22号四川农资大厦","lng":104.065108,"lat":30.668556,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":56,"name":"成都宽窄巷子城际酒店","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"小通巷1号","lng":104.054098,"lat":30.66716,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":57,"name":"成都观隐颐云台","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"宽巷子38-39号(宽窄巷子地铁站B口步行180米)","lng":104.0517,"lat":30.664572,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":58,"name":"成都金河宾馆","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"金河路18号","lng":104.056102,"lat":30.661739,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":59,"name":"成都青羊希尔顿惠庭酒店","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"光华西五路35号","lng":103.957617,"lat":30.666613,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":60,"name":"成都青羊豪生life酒店","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"光华北三路238号(中坝地铁站B口步行350米)","lng":103.966397,"lat":30.676061,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":61,"name":"成都非遗博览园缇沃丽酒店","channel":"时光在线","district":"青羊区","realDistrict":"青羊区","address":"光华大道2段601号","lng":103.92416,"lat":30.671854,"style":"中式 / 园林度假","budget":"待询","capacity":"待询"},{"id":62,"name":"大蓉和(天府三街店)","channel":"时光在线","district":"高新区","realDistrict":"双流区","address":"康和西一街36号附10号(中和地铁站C口步行200米)","lng":104.098443,"lat":30.557896,"style":"中式 / 独栋会所","budget":"待询","capacity":"待询"},{"id":63,"name":"成都交子国际酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"天府大道北段1677号3栋","lng":104.070689,"lat":30.577149,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":64,"name":"成都凯里亚德酒店","channel":"时光在线","district":"高新区","realDistrict":"龙泉驿区","address":"大面街道悦来街61号","lng":104.146556,"lat":30.618232,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":65,"name":"成都新东方千禧大酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"高新区神仙树南路41号","lng":104.049058,"lat":30.612999,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":66,"name":"成都新希望高新皇冠假日酒店","channel":"时光在线","district":"高新区","realDistrict":"郫都区","address":"西芯大道1号附1号","lng":103.973897,"lat":30.728509,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":67,"name":"成都生物城凯悦嘉轩酒店","channel":"时光在线","district":"高新区","realDistrict":"双流区","address":"慧谷路1号","lng":103.976844,"lat":30.427729,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":68,"name":"成都茂业JW万豪酒店","channel":"时光在线","district":"高新区","realDistrict":"锦江区","address":"东御街19号(天府广场地铁站东1南口步行370米)","lng":104.069997,"lat":30.656864,"style":"西式 / 酒店宴会厅","budget":"待询","capacity":"20-50桌"},{"id":69,"name":"成都金融城英迪格酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"锦云东三巷99号","lng":104.074181,"lat":30.581025,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":70,"name":"成都首座万丽酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"人民南路四段48号","lng":104.066359,"lat":30.612346,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":71,"name":"成都首座万豪酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"天府大道北段999号","lng":104.06969,"lat":30.58667,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":72,"name":"成都高新豪生大酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"天泰路338号","lng":104.069053,"lat":30.590652,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":73,"name":"桔子水晶成都金融城火车南站酒店","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"盛和一路88号","lng":104.061872,"lat":30.603577,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":74,"name":"芭菲婚礼会馆(奥克斯店)","channel":"时光在线","district":"高新区","realDistrict":"武侯区","address":"锦城大道666号锦城万达广场西区5层","lng":104.061038,"lat":30.576081,"style":"独栋会所","budget":"待询","capacity":"待询"},{"id":75,"name":"万拾东安湖酒店","channel":"时光在线","district":"龙泉驿","realDistrict":"龙泉驿区","address":"体育公园路1号东安湖公园","lng":104.24496,"lat":30.590392,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":76,"name":"亚朵酒店(成都龙泉店)","channel":"时光在线","district":"龙泉驿","realDistrict":"龙泉驿区","address":"驿都西路3666号108栋","lng":104.191669,"lat":30.581288,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":77,"name":"成都东安湖木棉花酒店","channel":"时光在线","district":"龙泉驿","realDistrict":"龙泉驿区","address":"湖岸北路与文运街交叉口东160米","lng":104.244543,"lat":30.593366,"style":"户外草坪 / 酒店宴会厅","budget":"3000-5000","capacity":"50-100桌"},{"id":78,"name":"成都东安阁酒店","channel":"两者","district":"龙泉驿","realDistrict":"龙泉驿区","address":"东安街道东安阁路670-671号","lng":104.258476,"lat":30.59196,"style":"中式 / 园林度假","budget":"待询","capacity":"50-100桌"},{"id":79,"name":"成都龙泉百悦希尔顿酒店","channel":"时光在线","district":"龙泉驿","realDistrict":"龙泉驿区","address":"金桉路118号","lng":104.185646,"lat":30.577276,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":80,"name":"维也纳国际酒店(成都火车东站店)","channel":"时光在线","district":"龙泉驿","realDistrict":"成华区","address":"锦绣大道5555号5547号","lng":104.139246,"lat":30.634493,"style":"酒店宴会厅","budget":"待询","capacity":"待询"},{"id":81,"name":"成都博瑞花园酒店","channel":"昌森","district":"龙泉驿区","realDistrict":"龙泉驿区","address":"阳光大道11号","lng":104.310675,"lat":30.599085,"style":"户外草坪 / 园林度假","budget":"1500-3000","capacity":"20-50桌"}];
+
+// Build district filter chips dynamically
+const districts = [...new Set(HOTELS.map(h => h.district))].sort();
+const distContainer = document.getElementById('filter-district');
+districts.forEach(d => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.dataset.val = d;
+  chip.textContent = d;
+  distContainer.appendChild(chip);
+});
+
+// Filter state
+const filters = { district: new Set(), budget: new Set(), capacity: new Set(), style: new Set() };
+
+// Click handler for chips
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const filterId = chip.parentElement.id.replace('filter-','');
+    const val = chip.dataset.val;
+    if (filters[filterId].has(val)) { filters[filterId].delete(val); chip.classList.remove('active'); }
+    else { filters[filterId].add(val); chip.classList.add('active'); }
+    applyFilters();
+  });
+});
+
+function resetFilters() {
+  Object.values(filters).forEach(s => s.clear());
+  document.querySelectorAll('.chip.active').forEach(c => c.classList.remove('active'));
+  applyFilters();
+}
+
+// Initialize map - centered on Chengdu
+// Use 高德 tile server (no key, displays GCJ-02 coords correctly)
+const map = L.map('map').setView([30.65, 104.07], 11);
+L.tileLayer('https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&style=7&x={x}&y={y}&z={z}', {
+  subdomains: ['1','2','3','4'],
+  attribution: '高德地图 · GCJ-02',
+  maxZoom: 18,
+}).addTo(map);
+
+// Marker color by channel
+function colorByChannel(c) {
+  if (c === '两者') return '#d32f2f';
+  if (c === '昌森') return '#7b1fa2';
+  return '#1976d2';
+}
+
+// Build all markers
+const markers = [];
+HOTELS.forEach(h => {
+  const color = colorByChannel(h.channel);
+  const icon = L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="background:${color};width:16px;height:16px;border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.4);"></div>`,
+    iconSize: [20,20], iconAnchor: [10,10],
+  });
+  const m = L.marker([h.lat, h.lng], {icon});
+  const channelBadge = h.channel === '两者' ? 'badge-both' : (h.channel === '昌森' ? 'badge-chang' : 'badge-shi');
+  m.bindPopup(`
+    <div class="popup-card">
+      <div class="name">${h.name}</div>
+      <div class="row"><span class="label">渠道</span><span class="badge ${channelBadge}">${h.channel}</span></div>
+      <div class="row"><span class="label">区域</span>${h.district} (高德: ${h.realDistrict})</div>
+      <div class="row"><span class="label">地址</span>${h.address}</div>
+      <div class="row"><span class="label">风格</span>${h.style}</div>
+      <div class="row"><span class="label">餐标</span>${h.budget}</div>
+      <div class="row"><span class="label">桌数</span>${h.capacity}</div>
+    </div>
+  `);
+  markers.push({marker: m, data: h});
+  m.addTo(map);
+});
+
+function applyFilters() {
+  let visible = 0;
+  markers.forEach(({marker, data}) => {
+    let show = true;
+    if (filters.district.size && !filters.district.has(data.district)) show = false;
+    if (filters.budget.size && !filters.budget.has(data.budget)) show = false;
+    if (filters.capacity.size && !filters.capacity.has(data.capacity)) show = false;
+    if (filters.style.size) {
+      // 风格 matches if ANY selected style appears in the hotel's style tags
+      const hasMatch = [...filters.style].some(s => data.style.includes(s));
+      if (!hasMatch) show = false;
+    }
+    if (show) {
+      if (!map.hasLayer(marker)) marker.addTo(map);
+      visible++;
+    } else {
+      if (map.hasLayer(marker)) map.removeLayer(marker);
+    }
+  });
+  document.getElementById('count').textContent = visible;
+}
+
+applyFilters();
+</script>
+</body>
+</html>
