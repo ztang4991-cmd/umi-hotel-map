@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>UMI 酒店地图</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #111827 0%, #1a1a2e 55%, #26345f 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 520px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.28);
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { margin: 0 0 22px; color: #cbd5e1; line-height: 1.7; }
+    .buttons { display: grid; gap: 14px; }
+    a {
+      display: block;
+      text-decoration: none;
+      color: #111827;
+      background: #ffc107;
+      border-radius: 14px;
+      padding: 16px 18px;
+      font-weight: 700;
+      font-size: 17px;
+      text-align: center;
+    }
+    a.secondary { background: #fff; }
+    .hint { margin-top: 18px; font-size: 13px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>UMI 酒店地图</h1>
+    <p>婚礼管家工作台。手机端优先使用手机版，电脑端可打开电脑版。</p>
+    <div class="buttons">
+      <a href="tools/UMI酒店地图_V2.html">打开手机版地图</a>
+      <a class="secondary" href="tools/UMI酒店地图_V1.html">打开电脑版地图</a>
+    </div>
+    <div class="hint">如果手机打不开视频，请先在微信外部浏览器或系统浏览器中打开。</div>
+  </main>
+</body>
+</html>
