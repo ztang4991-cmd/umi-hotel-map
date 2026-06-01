@@ -117,6 +117,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 .video-placeholder { padding: 36px 20px; text-align: center; color: #9ca3af; }
 .video-placeholder .icon { font-size: 36px; margin-bottom: 8px; }
 .video-placeholder p { font-size: 12px; line-height: 1.6; }
+.video-list { display: flex; flex-direction: column; gap: 6px; max-height: 132px; overflow-y: auto; }
+.video-item {
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  color: white; border-radius: 8px; padding: 8px 10px; cursor: pointer;
+  font-size: 12px; text-align: left;
+}
+.video-item:hover { background: rgba(255,255,255,.12); }
+.video-item .meta { color: #9ca3af; font-size: 10px; margin-top: 2px; }
 
 /* Map popup */
 .leaflet-popup-content-wrapper { border-radius: 10px; }
@@ -230,9 +238,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 
     <button class="reset-btn" onclick="resetFilters()">🔄 清空所有筛选</button>
 
+    <div class="filter-group" id="videoGroup" style="display:none; margin-top:14px;">
+      <h3>🎬 带看视频</h3>
+      <div class="video-list" id="videoList"></div>
+    </div>
+
     <div class="stats">
       当前匹配 <span class="big" id="count">0</span> 家<br>
-      <span style="color:#8892a4;">总库: 80 家合作酒店</span>
+      <span style="color:#8892a4;">总库: <span id="totalCount">0</span> 家酒店</span>
     </div>
 
     <div class="legend">
@@ -282,6 +295,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 <script>
 // ========== HOTEL DATA ==========
 const HOTELS = HOTEL_DATA_PLACEHOLDER;
+document.getElementById('totalCount').textContent = HOTELS.length;
 
 // ========== District chips (dynamic) ==========
 const districts = [...new Set(HOTELS.map(h => h.district))].sort();
@@ -293,6 +307,15 @@ districts.forEach(d => {
   chip.textContent = d;
   distContainer.appendChild(chip);
 });
+
+const videoHotels = HOTELS.filter(h => h.videoUrl);
+if (videoHotels.length) {
+  document.getElementById('videoGroup').style.display = 'block';
+  document.getElementById('videoList').innerHTML = videoHotels.map(h =>
+    '<button class="video-item" onclick="openDetail(' + h.id + ')">' +
+    h.name + '<div class="meta">点击播放带看视频</div></button>'
+  ).join('');
+}
 
 // ========== Filter state ==========
 const filters = { channel: new Set(), district: new Set(), budget: new Set(), capacity: new Set(), style: new Set() };
@@ -405,9 +428,12 @@ function openDetail(hotelId) {
   // Video
   var container = document.getElementById('videoContainer');
   if (hotel.videoUrl) {
+    var videoType = 'video/mp4';
+    if (/\.mov($|\?)/i.test(hotel.videoUrl)) videoType = 'video/quicktime';
+    if (/\.webm($|\?)/i.test(hotel.videoUrl)) videoType = 'video/webm';
     container.innerHTML =
       '<video controls preload="none">' +
-      '<source src="' + hotel.videoUrl + '" type="video/mp4">' +
+      '<source src="' + hotel.videoUrl + '" type="' + videoType + '">' +
       '您的浏览器不支持视频播放</video>';
   } else {
     container.innerHTML =
