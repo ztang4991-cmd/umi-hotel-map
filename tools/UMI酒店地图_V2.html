@@ -142,12 +142,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
     position: fixed; bottom: 0; left: 0; right: 0; width: 100%;
     height: auto; max-height: 72vh; z-index: 900;
     border-radius: 16px 16px 0 0; padding: 10px 16px 28px;
-    transform: translateY(calc(100% - 68px)); transition: transform .3s ease;
+    transform: translateY(calc(100% - 68px)); transition: transform .25s ease;
+    will-change: transform; touch-action: pan-y;
   }
   .sidebar.expanded { transform: translateY(0); }
+  .sidebar.dragging { transition: none; }
   .sidebar-handle {
     display: block !important; width: 36px; height: 4px;
     background: rgba(255,255,255,.3); border-radius: 2px; margin: 0 auto 10px;
+    cursor: pointer; position: relative;
+  }
+  .sidebar-handle::before {
+    content: ''; position: absolute;
+    top: -16px; left: -50vw; right: -50vw; bottom: -16px;
   }
 
   #map { height: 100vh; width: 100%; }
@@ -459,20 +466,71 @@ function closeDetail() {
   var sidebar = document.getElementById('sidebar');
   var handle = document.getElementById('sidebarHandle');
   var touchStartY = 0;
+  var touchCurrentY = 0;
+  var touchStartTime = 0;
+  var isDragging = false;
+  var isExpanded = false;
 
-  if (handle) {
-    // Click handle to toggle
-    handle.addEventListener('click', function() {
-      sidebar.classList.toggle('expanded');
-    });
-    // Swipe up/down
-    sidebar.addEventListener('touchstart', function(e) {
-      touchStartY = e.touches[0].clientY;
-    }, { passive: true });
-    sidebar.addEventListener('touchend', function(e) {
-      var diff = e.changedTouches[0].clientY - touchStartY;
-      if (diff < -50) sidebar.classList.add('expanded');
-      if (diff > 50) sidebar.classList.remove('expanded');
+  if (!handle) return;
+
+  // Click handle to toggle
+  handle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    isExpanded = !isExpanded;
+    sidebar.classList.toggle('expanded', isExpanded);
+  });
+
+  // Enhanced touch handling with real-time follow
+  handle.addEventListener('touchstart', function(e) {
+    touchStartY = e.touches[0].clientY;
+    touchCurrentY = touchStartY;
+    touchStartTime = Date.now();
+    isDragging = true;
+    sidebar.classList.add('dragging');
+  }, { passive: true });
+
+  handle.addEventListener('touchmove', function(e) {
+    if (!isDragging) return;
+    touchCurrentY = e.touches[0].clientY;
+    var diff = touchCurrentY - touchStartY;
+
+    // Real-time follow (only when dragging down from expanded, or up from collapsed)
+    if ((isExpanded && diff > 0) || (!isExpanded && diff < 0)) {
+      var baseTransform = isExpanded ? 0 : (sidebar.offsetHeight - 68);
+      var newTransform = Math.max(0, Math.min(sidebar.offsetHeight - 68, baseTransform + diff));
+      sidebar.style.transform = 'translateY(' + newTransform + 'px)';
+    }
+  }, { passive: true });
+
+  handle.addEventListener('touchend', function(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    sidebar.classList.remove('dragging');
+    sidebar.style.transform = ''; // Reset inline style
+
+    var diff = touchCurrentY - touchStartY;
+    var duration = Date.now() - touchStartTime;
+    var velocity = Math.abs(diff) / duration; // px/ms
+
+    // Velocity-based swipe (>0.5 px/ms = fast swipe)
+    if (velocity > 0.5) {
+      if (diff < -10) isExpanded = true;
+      else if (diff > 10) isExpanded = false;
+    }
+    // Threshold-based (30px)
+    else {
+      if (diff < -30) isExpanded = true;
+      else if (diff > 30) isExpanded = false;
+    }
+
+    sidebar.classList.toggle('expanded', isExpanded);
+  });
+
+  // Prevent content scrolling from closing drawer
+  var contentArea = sidebar.querySelector('.search-box');
+  if (contentArea) {
+    contentArea.addEventListener('touchstart', function(e) {
+      e.stopPropagation();
     });
   }
 
@@ -480,7 +538,10 @@ function closeDetail() {
   document.querySelectorAll('.chip').forEach(function(chip) {
     chip.addEventListener('click', function() {
       if (window.innerWidth <= 768) {
-        setTimeout(function() { sidebar.classList.remove('expanded'); }, 800);
+        setTimeout(function() {
+          isExpanded = false;
+          sidebar.classList.remove('expanded');
+        }, 800);
       }
     });
   });
